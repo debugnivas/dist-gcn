@@ -1,0 +1,246 @@
+﻿AIMLZG516: ML System Optimization                                                                                          
+ML System Optimization Assignment - 1
+State Parallelization/or Distribution of an ML Algorithm
+Name
+	ID Number
+	Contribution
+	Ashwin Dev P
+	2024ac05165
+	100%
+	Deepakh Srinivasan
+	2024ac05487
+	100%
+	Karthik Anand V
+	2024ac05567
+	100%
+	Ramanan A T
+	2024ad05486
+	100%
+	Vishnu Prasath D
+	2024ac05522
+	100%
+	Table of Contents
+Abstract        2
+Introduction        2
+Literature Survey [A1]        2
+Semi-Supervised Classification with Graph Convolutional Networks (GCN)        2
+Graph Convolutional Neural Networks for Web-Scale Recommender Systems (PinSAGE)        3
+Graph Attention Networks (GAT)        3
+Inductive Representation Learning on Large Graphs        4
+How Powerful are Graph Neural Networks?        4
+Problem Statement [A2]        5
+Algorithm        5
+Explanation        6
+Algorithm Analysis        6
+Problem        7
+Expected Performance Metrics        7
+Design [A3]        7
+Design Choices        7
+Distributed Algorithm        8
+Performance Metrics        9
+1. Speedup        9
+2. Communication Cost        9
+Conclusion        10
+References        10
+Abstract
+Graph Neural Networks (GNNs) have become the standard for modeling complex relationships in social networks, molecular biology, and citation data. Unlike traditional CNNs that rely on rigid grid structures, GNNs handle irregular topologies. This creates a significant computational bottleneck during the message-passing phase, where neighborhood aggregation dominates execution time. This survey reviews the GCN, a subset of the GNN algorithm which defines the field and analyzes why its unique data-access patterns mandates specialized system-level optimizations.
+Introduction
+In recent years, the demand to learn from unstructured, relational data has led Graph Neural Networks (GNNs) to become a prime algorithm in machine learning. Conceptually, standard Convolutional Neural Networks (CNNs) use fixed-grid inputs for analysis. But they fall short when applied to the irregular structures found in complex interactions like massive social graphs.
+The core of GCN performance and its greatest challenge lies in the message-passing paradigm. In this phase, nodes must pull and aggregate feature vectors from their neighbors, a process that is often memory-bound. As datasets scale into the billions of edges, these bottlenecks become prohibitive. This survey provides a deep dive into the landmark papers that established GCN theory, while simultaneously highlighting the growing disconnect between algorithmic complexity and hardware efficiency. We explore opportunities to improve the performance by applying system-level optimization.
+Literature Survey [A1]
+Semi-Supervised Classification with Graph Convolutional Networks (GCN)
+Authors: Thomas N. Kipf, Max Welling
+Paper: https://arxiv.org/abs/1609.02907
+
+
+Problem: 
+To categorize nodes in a graph with very little labeled data, we had to rely on Laplacian regularization. The big assumption there was that if two nodes were connected, they probably belonged to the same category. While that sounds logical, it need not to be. It basically just smooths labels over the graph without a good way to integrate the actual data or features sitting inside those nodes. Beyond that, most existing graph methods were either too slow for big networks or required messy, multi-step pipelines that were a pain to manage. The real goal was to find a single, efficient model that could look at the graph structure and the node features at the exact same time.
+
+
+Solution:
+In this paper, the authors solved this problem by introducing the Graph Convolutional Network (GCN). Instead of overcomplicating things, they used a clever shortcut, a first order approximation of spectral convolutions to create a message passing system. In this setup, each node looks at its neighbors, grabs their info, and updates its own representation through a simple neural network layer. By stacking a few of these layers, a node can eventually sense its wider neighborhood. It’s a lean approach that scales linearly with the number of edges, making it fast enough for real-world use while finally letting node features and graph geometry work together in one unified framework.
+Graph Convolutional Neural Networks for Web-Scale Recommender Systems (PinSAGE)
+Authors: Rex Ying, Ruining He, Kaifeng Chen, Pong Eksombatchai, William L. Hamilton, Jure Leskovec
+Paper: https://arxiv.org/abs/1806.01973
+
+
+Problem:
+Pinterest tried to use standard GCNs for their recommendations, but they faced a problem. In general, most GNN models are built for datasets that can fit on a single machine, but Pinterest is dealing with billions of pins and tens of billions of connections. This simply can’t run a standard matrix multiplication on a graph of that size without the machine crashing. Another challenge was that the graph is always changing. Hence they needed an inductive model, something that could generate a profile for a brand new pin on the fly without having to re-process the entire global network every time someone uploaded a photo.
+
+
+Solution:
+PinSage reimagines how a convolution works on a massive scale. Instead of trying to look at every single neighbor, PinSage uses random walks to figure out which neighbors actually matter. It essentially samples the most important nearby nodes to create a manageable mini-graph for each calculation. To actually run this across billions of items, they moved the process into a MapReduce pipeline to avoid doing the same work twice. They also found optimization with the training: they used hard negatives i.e., examples that are almost right but not quite, to force the model to learn the very subtle differences between similar looking items. This model led into something robust enough to power a global discovery engine.
+Graph Attention Networks (GAT)
+Authors: Petar Veličković, Guillem Cucurull, Arantxa Casanova, Adriana Romero, Pietro Liò, Yoshua Bengio
+Paper: https://arxiv.org/abs/1710.10903
+
+
+Problem:
+Before GAT, most graph models (like GCNs) treated a node’s neighbors as a monolith. When updating a node’s information, the model would either average everything together or use fixed weights based on the graph’s structure (like how many connections a node had). The big issue here is that in the real world, not all connections are equally important. For example, in a citation network, a paper might cite ten others, but only one or two are truly foundational to its work. Traditional models didn't have a way to distinguish that signal from the noise. They also struggled with inductive tasks, meaning they had a hard time handling brand new nodes or entirely different graphs that weren't seen during training, because their math was too tied to the specific shape of the original graph.
+
+
+
+
+Solution:
+The authors’ solution was to bring the attention mechanism (the same tech behind Transformers) into the world of graphs. Instead of using pre-set weights, GAT learns an attention coefficient for every pair of connected nodes. This means that during training, the model learns to assign higher weights to the neighbors that are most relevant to a specific task and lower weights to the ones that aren't. To make this process more stable and powerful, they used multi-head attention, where the model runs several independent attention processes at once and merges the results, sort of like getting multiple opinions on which neighbors are important. Because this mechanism only depends on the features of the nodes themselves and not the global structure of the graph, GAT is naturally inductive, allowing it to work on totally new data without breaking a sweat.
+
+
+Inductive Representation Learning on Large Graphs
+Authors: William L. Hamilton, Rex Ying, Jure Leskovec
+Paper: https://arxiv.org/abs/1706.02216
+
+
+Problem:
+Most graph embedding methods were transductive. This is a fancy way of saying they could only create embeddings for nodes they had already seen during training. If you added a new user to a social network or a new paper to a citation graph, the model was essentially blind to them; you’d often have to retrain the entire model just to get a representation for that one new node. Beyond that, many existing GNNs were full-batch, meaning they tried to process the entire graph at once. On a real-world dataset with millions or billions of edges, that’s a recipe for running out of memory instantly. The challenge was to create an inductive model—one that learns a general rule for how to represent any node, even ones it has never encountered before.
+        
+Solution:
+This paper suggests training the model to learn aggregator functions rather than individual node vectors. Instead of memorizing a specific spot in a high-dimensional space for Node A, GraphSAGE follows multiple steps, looks at your immediate neighbors, samples a handful of them to keep things fast, and combines their features using a function like Mean, Max-Pooling, or an LSTM. This approach is powerful because the model is learning the logic of the neighborhood rather than the identity of the nodes. Since it only requires a node’s features and its local connections to work, you can drop a brand-new node into a trained GraphSAGE model and it can generate an embedding on the fly. By using fixed-size neighbor sampling, the authors also made it possible to train on massive graphs in mini-batches, finally making GNNs practical for production-scale systems.
+How Powerful are Graph Neural Networks?
+Authors: Keyulu Xu, Weihua Hu, Jure Leskovec, Stefanie Jegelka
+Paper: https://arxiv.org/abs/1810.00826
+Problem:
+        Researchers were building all sorts of GNN variants, like GCN and GraphSAGE but nobody really knew how much of the graph's structure these models were actually able to view. The authors discovered that most common GNNs are surprisingly ignorant to certain simple structural differences. For instance, if you have two different chemical molecules that happen to have the same average neighbor features, a standard GCN might think they are identical. The fundamental issue was that popular aggregation methods, like mean-pooling (averaging neighbors) or max-pooling (taking the strongest neighbor signal), are not injective. In other words, they lose information; they can't distinguish between a neighborhood with two similar nodes and a neighborhood with just one. This effectively capped the power of GNNs at a level below the classic Weisfeiler-Lehman (WL) graph isomorphism test, a decades-old benchmark for telling graphs apart.
+        
+Solution:
+        The authors through the paper claim that for a GNN to be as powerful as the WL test, its aggregation and update functions must be injective, meaning every unique set of neighbors must map to a unique representation. They proposed the Graph Isomorphism Network (GIN), which uses a simple but mathematically rigorous formula: instead of averaging or taking the maximum, it sums the features of the neighbors and the node itself. Summation is key because it preserves the count and multiplicity of features that mean and max-pooling throw away. By wrapping this sum in a Multi-Layer Perceptron (MLP), the model can learn any injective function it needs. This makes GIN provably the most powerful message-passing GNN possible, allowing it to distinguish complex graph structures that other models simply skip over.
+
+
+Problem Statement [A2]
+Graph Convolutional Networks (GCNs) are deep learning models that extend traditional convolution to graph-structured data, learning from both node features and their connections (edges) to extract features and make predictions, essentially by allowing nodes to aggregate information from their neighbors. They work by passing messages between connected nodes, learning localized patterns, and are used for tasks like node classification, link prediction, and recommendation systems by capturing the graph's structure and data. Sample use-cases are 
+1. Social Media & Recommendation Engines - E.g Friend Suggestions
+2. Targeted Ads - Identifying communities of people with similar interests to show relevant products.
+Algorithm 
+Let |V |: Total number of nodes in the graph.  L: Total number of layers Davg: Average degree of the graph d: Feature dimension  E: Total edges in the graph, Y: Labeled data
+
+
+1:Input: Full Graph G(V,E), Features X, Labels Y, Learning Rate η. Weights W(1) ...W(L)
+2:for epoch = 1 to MAX_EPOCS {
+3:    H(0) ← X
+4:    // FORWARD PASS 
+5:    for layer l = 1 to L {
+6:        for each node v ∈ V {
+7:                N(v)  ← get neighbours(v)
+8:                msgagg ← initialize to zero vector
+9:                for each neighbor u ∈ N(v) {
+10:                   msgagg ← msgagg + Hu(l-1)
+11:               }
+12:               Hv(l) ← sigma(msgagg .W(l) )
+13:         } 
+14:     }
+15:     //LOSS & BACKWARD PASS 
+16      Loss ← L(H(L),Y)
+17:     Compute Gradients ∇W(l) using Backpropagation
+18:    //WEIGHT UPDATE
+19:     for layer l = 1 to L {
+20:            W(l) ← W(l) − η · ∇W(l)
+22:     }
+22:}
+23: Return Trained Weights W
+	Explanation
+The algorithm repeats these steps for a set number of epochs until it gets the best possible results.
+1. The Forward Pass - This is the message passing phase. For every layer in the network, the following steps are executed. Each node v looks at all the nodes it is connected to. Add up all the features or messages from its neighbors. Combine collective information with a weight matrix W and apply an activation function sigma. By the end of this phase, every node has a new mathematical summary of its local neighborhood.
+2. Loss & Backward Pass - After the information has passed through all layers, the algorithm compares its final guess H(L)) against the actual label data Y. Loss is calculated. Backpropagation is done to update the weights.
+3. Weight Update - The algorithm slightly adjusts the weights W in the backward direction of the error.
+Algorithm Analysis
+Following is the time and space complexity analysis of the GCN algorithm.
+
+
+Step
+	Time Complexity
+	Space Complexity
+	Forward Pass
+	O(L · |V | · (Davg · d + d2))
+	O(L · |V | · d) (Activations)
+	Loss
+	O(|V | · d)
+	O(1)
+	Backpropagation
+	O(L · |V | · (Davg · d + d2)) 
+	O(L · |V | · d) (Gradients)
+	Update
+	O(L · d2) 
+	O(1)
+	Total
+	O(L · |V| · (Davg · d + d2))
+	O(L · |V| · d + |E|)
+	Problem
+1. Time Scalability Problem (also called neighbor explosion in GCN):  In a GCN, every node needs to talk to all its neighbors to update its information. If you have a graph with a billion connections, the computer must process every single one of those connections for every layer of the network, and then repeat that thousands of times during training. Processing these edges sequentially takes too long. For example, processing 10^9 edges repeatedly would result in unacceptably high training times.
+2. Space Scalability Problem: To learn correctly, the computer doesn't just need the final result; it needs to remember the state of every node at every single layer to calculate how to improve the model. As the graph gets bigger, the memory requirement explodes.
+Example: For a graph with 100 million nodes, storing the data for just 3 layers can take about 150 GB of RAM - just for the node features. On top of that, we still need to store the map of the graph , which adds even more gigabytes.
+Expected Performance Metrics
+1. Speedup: It measures how much faster the model trains as more processors are added and ideally it should be scalable. The speedup should proportionally increase as more processors are needed. But practically this is not possible in GCN due to communication costs involved. 
+2. Communication cost: It refers to the time and bandwidth used to send node features or gradients between different machines. Should be minimal but this is typically the bottleneck in distributed GCNs and we will. 
+3. Memory per node: Should be manageable. Distributing GCN is often done specifically because the memory required for a large graph is too high for a single machine.
+Design [A3]
+Design Choices
+Following are the techniques which can be adopted to parallelize and distribute GCN algorithms.  
+1. Data and Graph Partitioning - Since a massive graph (like a social network) won't fit on a single machine's memory, partitioning breaks it into chunks. Each node receives its own partition Gi and the corresponding features Xi, allowing them to process data in parallel. Randomly splitting nodes would force almost every neighbor lookup to happen over the network, which is extremely slow. The Metis algorithm is used to partition the graph. It minimizes the number of connections that cross between different machines, ensuring that most neighbor information is already available in the worker's local memory.
+2. Map/Data Parallelism - In Lines 13–14, the map phase is where the work is prepared for each node. For every node v, the worker looks at its neighborhood N(v). It then maps the features of those neighbors into a list of messages in parallel. Because the Map function only cares about a node and its immediate neighbors, every single node in the graph can be mapped at the same exact time on different CPU/GPU cores.
+3. Reduce - In Lines 15–16, the reduce phase takes all those prepared messages and reduces them into one single value in parallel.
+4. Parameter Server - Managing the weights of the GCN requires a central authority or a distributed repository known as a Parameter Server. Each worker calculates partial gradients based on its own local subgraph. These partial gradients are sent to the Parameter Server, which sums them up to update the global shared weights. The processors then pull the updated weights to start the next step.
+Distributed Algorithm
+
+
+1: Phase 1: Setup & Partitioning
+2: G ← Load_Full_Graph()
+3: G1, G2, ..., GP ← PARTITION_GRAPH(G, P) using Metis
+4: Distribute Gi to Worker i (along with local Features Xi)
+5: Initialize Global Weights W on Parameter Server
+6: Phase 2: Distributed Training Loop (on Worker i)
+7: for epoch = 1 to MAX_EPOCHS {
+8:   // Step 2.1: Pull Weights
+9:   W_local ← ParameterServer.PULL()
+10: H(0) ← Xi
+11:  // Step 2.2: Local Forward Pass
+12:  for l = 1 to L {
+13:    for each node v ∈ Vi {
+14:     // Map: Generate messages for local neighbors
+15:     msg_list ← { Hu(l-1) | u ∈ N(v) ∩ Vi }
+16:     // Reduce: Aggregate messages
+17:     msg_agg ← reduce(msg_list, SUM)
+18:     Hv(l) ← σ(msg_agg · W_local(l))
+19:    }
+20: }
+21: // Step 2.3: Local Backward Pass
+22: Compute Loss using local labels Ylocal
+23: Compute Gradients ∇Wlocal via Backpropagation
+24: // Step 2.4: Push Gradients
+25: ParameterServer.PUSH(∇Wlocal)
+26: (end of epoch)
+27: }
+	Performance Metrics
+1. Speedup
+T_seq ≈ L · (|E| · d + |V| · d²)
+T_parallel = O( L · ( (|E|/P) · d + (|V|/P) · d² ) ) + O( L · d² · (P/B) )  (Note: The first term represents Computation, and the second term represents Communication cost)
+Speed up = T_seq/T_parallel
+L: Number of layers.|E|/P and |V|/P: Local edges and nodes per worker. d:Feature/Hidden dimension. B: Total available bandwidth at the Parameter Server.
+The distributed GCN algorithms are scalable in theory, but it faces significant practical scalability bottlenecks primarily due to communication costs and data dependency. While adding more processors, it reduces the computation time per worker, the time spent on the network often increases, eventually negating the benefits of parallelization.
+2. Communication Cost 
+Communication cost refers to the time and bandwidth spent moving data between physical machines. In this specific algorithm, communication happens at two critical points: between processors and the Parameter Server and between different processors. Breakdown of where those costs come from.
+
+
+1. Parameter Server Synchronization 
+   1. The Pull (Line 9): Before computation starts, every Worker must download the current weight matrix W from the Parameter Server. If you have 100 processors and a 1GB model, the server must upload 100GB of data
+   2. The Push (Line 25): After backpropagation, every worker sends its gradient matrix back to the server.
+   3. As the number of processors (P) increases, the Parameter Server can become a bottle neck. The time spent waiting for the network to transfer these weights often exceeds the time spent actually calculating the math
+2.  Cross-Partition Edge Data 
+   1. If all neighbors of node v are in the same partition, the communication cost is zero because the data is already in the worker's local RAM.
+   2. To complete the Map phase, Worker i must request the feature vector from Worker j over the network. This is significantly slower than reading from local memory.
+Conclusion
+To wrap things up, through this assignment, we have learnt the Graph Convolutional Network and how to optimize and run in a distributed environment at scale.In addition to the techniques we learnt in the class, we have learnt the following from a literature survey.
+* Techniques like Metis for smart graph partitioning to enable distributed data processing
+* Adopting a MapReduce approach for message passing in GCN algorithm, which can help to arrive at the kind of linear speedup needed for web-scale data.
+* In the message passing system, by stacking a few neural network layers, a node can eventually sense its wider neighborhood.
+* PinSage uses random walks to figure out which neighbors actually matter thereby enabling these models to work for billions of users.
+* The neighbor explosion and memory demands of GCNs are serious hurdles that a single machine just can’t handle. Hence there is a definite need for system optimization
+
+
+References
+1. Semi-Supervised Classification with Graph Convolutional Networks (GCN)
+2. Graph Convolutional Neural Networks for Web-Scale Recommender Systems
+3. Graph Attention Networks
+4. Inductive Representation Learning on Large Graphs
+5. How Powerful are Graph Neural Networks?
+6. Introduction to Graphical Neural Networks
+7. Parallel and Distributed Graph Neural Networks: An In-Depth Concurrency Analysis
+8. Scalable Graph Convolutional Network Training on Distributed-Memory Systems
