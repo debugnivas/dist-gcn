@@ -19,9 +19,6 @@ dist/
 data/*.npz
 data/*.zip
 
-# Results / output
-results/
-
 # IDE / Editor
 .vscode/
 .idea/

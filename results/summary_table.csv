@@ -1,0 +1,5 @@
+config,workers,avg_epoch_time_mean,avg_epoch_time_std,total_time_mean,speedup,efficiency,comm_overhead_pct,test_f1_mean,test_f1_std,peak_memory_mb
+sequential,1,43.7459,1.6429,131.2376,1.0,1.0,0.0,0.0181,0.0079,9592.0078
+spark_4,4,6.3129,0.6783,18.9386,6.9296,1.7324,1.9764,0.0166,0.0055,9592.0078
+spark_8,8,5.1514,0.5853,15.4543,8.492,1.0615,0.8939,0.0151,0.0037,9592.0078
+spark_16,16,4.3932,0.7531,13.1795,9.9577,0.6224,0.8656,0.0127,0.001,9592.0078
